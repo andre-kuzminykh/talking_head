@@ -1,0 +1,572 @@
+{
+  "product_name": "Talking Head Bot",
+  "product_overview": "Telegram bot that generates talking head videos from user photos and text using Hedra Character 3 and Andre AIT eng voice.",
+  "features": [
+    {
+      "feature_id": "F001",
+      "general_info": {
+        "name": "User greeting",
+        "overview": "Bot greets the user on start/launch and shows available actions."
+      },
+      "goal_and_context": {
+        "business_goal": "Provide clear entry point so users understand the bot is ready.",
+        "user_problem": "User needs confirmation that the bot is operational."
+      },
+      "actors_and_roles": {
+        "primary_user": "Telegram user",
+        "secondary_user": null,
+        "system_service": "Telegram Bot"
+      },
+      "business_rules": [
+        {
+          "rule_id": "BR001",
+          "description": "Bot must send a welcome message on /start command."
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "scenario_id": "SC001",
+          "user_story": "As a user, I want the bot to greet me so I know it is ready.",
+          "bdd": {
+            "given": "User opens the Telegram bot",
+            "and_preconditions": [],
+            "when": "User sends /start command",
+            "then": "Bot replies with a welcome message and action buttons",
+            "and_postconditions": []
+          }
+        }
+      ],
+      "non_functional_requirements": [
+        {
+          "nfr_id": "NFR001",
+          "type": "usability",
+          "description": "Welcome message must be clear and concise."
+        }
+      ],
+      "test_cases": [
+        {
+          "test_id": "T001",
+          "scenario_id": "SC001",
+          "setup": "Bot is running",
+          "action": "User sends /start",
+          "assertion": "Bot replies with welcome message containing action buttons",
+          "examples": [
+            {
+              "input": {"command": "/start"},
+              "expected": {"reply_contains": "Welcome", "has_keyboard": true}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "feature_id": "F002",
+      "general_info": {
+        "name": "Photo upload",
+        "overview": "User uploads a photo to the Telegram bot for video generation."
+      },
+      "goal_and_context": {
+        "business_goal": "Allow users to provide visual input for talking head generation.",
+        "user_problem": "User needs to supply a face photo for the video."
+      },
+      "actors_and_roles": {
+        "primary_user": "Telegram user",
+        "secondary_user": null,
+        "system_service": "Telegram Bot, Backend Service"
+      },
+      "business_rules": [
+        {
+          "rule_id": "BR002",
+          "description": "Bot must accept photo messages from the user."
+        },
+        {
+          "rule_id": "BR003",
+          "description": "Bot must download the highest resolution version of the photo."
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "scenario_id": "SC002",
+          "user_story": "As a user, I want to upload my photo so it can be used for video generation.",
+          "bdd": {
+            "given": "User is in the bot chat",
+            "and_preconditions": ["Bot is awaiting photo upload"],
+            "when": "User sends a photo",
+            "then": "Bot accepts the photo and confirms upload",
+            "and_postconditions": ["Photo is saved via backend API"]
+          }
+        },
+        {
+          "scenario_id": "SC003",
+          "user_story": "As a user, I want to see an error if I send non-photo content when photo is expected.",
+          "bdd": {
+            "given": "Bot is awaiting photo upload",
+            "and_preconditions": [],
+            "when": "User sends a text message instead of a photo",
+            "then": "Bot replies with an error asking for a photo",
+            "and_postconditions": []
+          }
+        }
+      ],
+      "non_functional_requirements": [],
+      "test_cases": [
+        {
+          "test_id": "T002",
+          "scenario_id": "SC002",
+          "setup": "Bot is running, user started /start",
+          "action": "User sends a photo",
+          "assertion": "Bot confirms photo uploaded and saved",
+          "examples": [
+            {
+              "input": {"photo_file_id": "AgACAgIAAxk"},
+              "expected": {"reply_contains": "saved", "photo_stored": true}
+            }
+          ]
+        },
+        {
+          "test_id": "T003",
+          "scenario_id": "SC003",
+          "setup": "Bot is awaiting photo",
+          "action": "User sends text instead of photo",
+          "assertion": "Bot asks for a photo",
+          "examples": [
+            {
+              "input": {"text": "hello"},
+              "expected": {"reply_contains": "photo"}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "feature_id": "F003",
+      "general_info": {
+        "name": "Photo storage",
+        "overview": "Uploaded photos are persisted per user for reuse across sessions."
+      },
+      "goal_and_context": {
+        "business_goal": "Enable photo reuse without re-upload.",
+        "user_problem": "User does not want to re-upload the same photo every time."
+      },
+      "actors_and_roles": {
+        "primary_user": "Telegram user",
+        "secondary_user": null,
+        "system_service": "Backend Service"
+      },
+      "business_rules": [
+        {
+          "rule_id": "BR004",
+          "description": "Each photo must be associated with the uploading user's Telegram ID."
+        },
+        {
+          "rule_id": "BR005",
+          "description": "Photos must persist between sessions."
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "scenario_id": "SC004",
+          "user_story": "As a user, I want my photos saved so I can reuse them later.",
+          "bdd": {
+            "given": "User uploads a photo",
+            "and_preconditions": [],
+            "when": "Backend receives the photo data",
+            "then": "Photo is stored in the database linked to the user",
+            "and_postconditions": ["Photo is retrievable by user ID"]
+          }
+        }
+      ],
+      "non_functional_requirements": [
+        {
+          "nfr_id": "NFR002",
+          "type": "reliability",
+          "description": "Photos must not be lost and must remain available across sessions."
+        }
+      ],
+      "test_cases": [
+        {
+          "test_id": "T004",
+          "scenario_id": "SC004",
+          "setup": "Empty database",
+          "action": "POST /api/v1/photos with user_id and file_id",
+          "assertion": "Photo record created with correct user_id",
+          "examples": [
+            {
+              "input": {"user_id": 123, "file_id": "AgACAgIAAxk", "file_path": "/photos/123/photo1.jpg"},
+              "expected": {"status": 201, "user_id": 123}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "feature_id": "F004",
+      "general_info": {
+        "name": "Saved photo selection",
+        "overview": "User selects a previously uploaded photo for the current generation."
+      },
+      "goal_and_context": {
+        "business_goal": "Streamline repeat usage by allowing photo reuse.",
+        "user_problem": "User wants to pick from existing photos without re-uploading."
+      },
+      "actors_and_roles": {
+        "primary_user": "Telegram user",
+        "secondary_user": null,
+        "system_service": "Backend Service, Telegram Bot"
+      },
+      "business_rules": [
+        {
+          "rule_id": "BR006",
+          "description": "Bot must display a list of saved photos for selection."
+        },
+        {
+          "rule_id": "BR007",
+          "description": "If user has no saved photos, bot must prompt to upload one."
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "scenario_id": "SC005",
+          "user_story": "As a user, I want to select a saved photo for the new video.",
+          "bdd": {
+            "given": "User has at least one saved photo",
+            "and_preconditions": [],
+            "when": "User chooses to select a saved photo",
+            "then": "Bot shows list of saved photos as inline buttons",
+            "and_postconditions": ["Selected photo is set for current generation"]
+          }
+        },
+        {
+          "scenario_id": "SC006",
+          "user_story": "As a user, I want to be prompted to upload if I have no saved photos.",
+          "bdd": {
+            "given": "User has no saved photos",
+            "and_preconditions": [],
+            "when": "User chooses to select a saved photo",
+            "then": "Bot informs no photos found and prompts to upload",
+            "and_postconditions": []
+          }
+        }
+      ],
+      "non_functional_requirements": [],
+      "test_cases": [
+        {
+          "test_id": "T005",
+          "scenario_id": "SC005",
+          "setup": "User has 2 saved photos in backend",
+          "action": "GET /api/v1/photos?user_id=123",
+          "assertion": "Returns list of 2 photos",
+          "examples": [
+            {
+              "input": {"user_id": 123},
+              "expected": {"status": 200, "count": 2}
+            }
+          ]
+        },
+        {
+          "test_id": "T006",
+          "scenario_id": "SC006",
+          "setup": "User has no saved photos",
+          "action": "GET /api/v1/photos?user_id=456",
+          "assertion": "Returns empty list",
+          "examples": [
+            {
+              "input": {"user_id": 456},
+              "expected": {"status": 200, "count": 0}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "feature_id": "F005",
+      "general_info": {
+        "name": "Speech text input",
+        "overview": "User sends the text that should be spoken in the generated video."
+      },
+      "goal_and_context": {
+        "business_goal": "Capture speech content from the user.",
+        "user_problem": "User needs to provide the words for the talking head to say."
+      },
+      "actors_and_roles": {
+        "primary_user": "Telegram user",
+        "secondary_user": null,
+        "system_service": "Telegram Bot"
+      },
+      "business_rules": [
+        {
+          "rule_id": "BR008",
+          "description": "Text must not be empty."
+        },
+        {
+          "rule_id": "BR009",
+          "description": "Text length is limited to produce audio up to 18 seconds."
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "scenario_id": "SC007",
+          "user_story": "As a user, I want to send speech text so the bot can generate audio.",
+          "bdd": {
+            "given": "Photo is selected for current generation",
+            "and_preconditions": [],
+            "when": "User sends a text message",
+            "then": "Bot accepts the text and starts generation pipeline",
+            "and_postconditions": ["Text is stored in FSM state"]
+          }
+        },
+        {
+          "scenario_id": "SC008",
+          "user_story": "As a user, I want an error if I send empty text.",
+          "bdd": {
+            "given": "Bot is awaiting speech text",
+            "and_preconditions": [],
+            "when": "User sends an empty or whitespace-only message",
+            "then": "Bot replies asking for non-empty text",
+            "and_postconditions": []
+          }
+        }
+      ],
+      "non_functional_requirements": [],
+      "test_cases": [
+        {
+          "test_id": "T007",
+          "scenario_id": "SC007",
+          "setup": "Photo selected, bot awaiting text",
+          "action": "User sends 'Hello world, this is a test'",
+          "assertion": "Bot confirms text received and starts generation",
+          "examples": [
+            {
+              "input": {"text": "Hello world, this is a test"},
+              "expected": {"reply_contains": "generating"}
+            }
+          ]
+        },
+        {
+          "test_id": "T008",
+          "scenario_id": "SC008",
+          "setup": "Bot awaiting text",
+          "action": "User sends empty message",
+          "assertion": "Bot asks for non-empty text",
+          "examples": [
+            {
+              "input": {"text": "   "},
+              "expected": {"reply_contains": "empty"}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "feature_id": "F006",
+      "general_info": {
+        "name": "Audio generation",
+        "overview": "System generates speech audio from user text using Andre AIT eng voice."
+      },
+      "goal_and_context": {
+        "business_goal": "Produce audio track for the talking head video.",
+        "user_problem": "User needs their text converted to speech with a specific voice."
+      },
+      "actors_and_roles": {
+        "primary_user": "Telegram user",
+        "secondary_user": null,
+        "system_service": "Backend Service (TTS)"
+      },
+      "business_rules": [
+        {
+          "rule_id": "BR010",
+          "description": "Audio must be generated using voice 'Andre AIT eng'."
+        },
+        {
+          "rule_id": "BR011",
+          "description": "Audio duration must not exceed 18 seconds."
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "scenario_id": "SC009",
+          "user_story": "As a user, I want my text converted to speech with Andre AIT eng voice.",
+          "bdd": {
+            "given": "Valid text is provided",
+            "and_preconditions": [],
+            "when": "Audio generation is requested",
+            "then": "Audio file is generated with Andre AIT eng voice",
+            "and_postconditions": ["Audio file URL is returned"]
+          }
+        }
+      ],
+      "non_functional_requirements": [
+        {
+          "nfr_id": "NFR003",
+          "type": "quality",
+          "description": "Audio must use Andre AIT eng voice consistently."
+        }
+      ],
+      "test_cases": [
+        {
+          "test_id": "T009",
+          "scenario_id": "SC009",
+          "setup": "TTS service available",
+          "action": "POST /api/v1/generation/audio with text",
+          "assertion": "Returns audio_url",
+          "examples": [
+            {
+              "input": {"text": "Hello world"},
+              "expected": {"status": 200, "has_audio_url": true}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "feature_id": "F007",
+      "general_info": {
+        "name": "Video generation",
+        "overview": "System generates talking head video using Hedra Character 3 from photo and audio."
+      },
+      "goal_and_context": {
+        "business_goal": "Produce the final talking head video.",
+        "user_problem": "User wants a video of a face speaking their text."
+      },
+      "actors_and_roles": {
+        "primary_user": "Telegram user",
+        "secondary_user": null,
+        "system_service": "Backend Service (Hedra)"
+      },
+      "business_rules": [
+        {
+          "rule_id": "BR012",
+          "description": "Video must be generated via Hedra Character 3."
+        },
+        {
+          "rule_id": "BR013",
+          "description": "Video aspect ratio must be 1:1."
+        },
+        {
+          "rule_id": "BR014",
+          "description": "Video quality must be 1080p."
+        },
+        {
+          "rule_id": "BR015",
+          "description": "Video duration must not exceed 18 seconds."
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "scenario_id": "SC010",
+          "user_story": "As a user, I want a talking head video generated from my photo and text.",
+          "bdd": {
+            "given": "Photo and audio are available",
+            "and_preconditions": [],
+            "when": "Video generation is requested",
+            "then": "Video is generated with correct parameters (1:1, 1080p, Hedra Character 3)",
+            "and_postconditions": ["Video file URL is returned"]
+          }
+        }
+      ],
+      "non_functional_requirements": [
+        {
+          "nfr_id": "NFR004",
+          "type": "quality",
+          "description": "Video must match parameters: Hedra Character 3, 1:1, 1080p."
+        }
+      ],
+      "test_cases": [
+        {
+          "test_id": "T010",
+          "scenario_id": "SC010",
+          "setup": "Hedra service available, photo and audio ready",
+          "action": "POST /api/v1/generation/video with photo_url and audio_url",
+          "assertion": "Returns video_url",
+          "examples": [
+            {
+              "input": {"photo_url": "https://example.com/photo.jpg", "audio_url": "https://example.com/audio.mp3"},
+              "expected": {"status": 200, "has_video_url": true}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "feature_id": "F008",
+      "general_info": {
+        "name": "Result delivery",
+        "overview": "Bot sends the generated video back to the user in Telegram."
+      },
+      "goal_and_context": {
+        "business_goal": "Deliver the final product to the user.",
+        "user_problem": "User wants to receive and view the video directly in Telegram."
+      },
+      "actors_and_roles": {
+        "primary_user": "Telegram user",
+        "secondary_user": null,
+        "system_service": "Telegram Bot"
+      },
+      "business_rules": [
+        {
+          "rule_id": "BR016",
+          "description": "Video must be sent as a video message in Telegram."
+        }
+      ],
+      "acceptance_criteria": [
+        {
+          "scenario_id": "SC011",
+          "user_story": "As a user, I want to receive the generated video in Telegram.",
+          "bdd": {
+            "given": "Video has been successfully generated",
+            "and_preconditions": [],
+            "when": "Generation pipeline completes",
+            "then": "Bot sends the video to the user as a Telegram video message",
+            "and_postconditions": []
+          }
+        },
+        {
+          "scenario_id": "SC012",
+          "user_story": "As a user, I want to be notified if generation fails.",
+          "bdd": {
+            "given": "Generation pipeline encounters an error",
+            "and_preconditions": [],
+            "when": "Any generation step fails",
+            "then": "Bot sends an error message to the user",
+            "and_postconditions": []
+          }
+        }
+      ],
+      "non_functional_requirements": [
+        {
+          "nfr_id": "NFR005",
+          "type": "usability",
+          "description": "User must not need to leave Telegram to get the result."
+        }
+      ],
+      "test_cases": [
+        {
+          "test_id": "T011",
+          "scenario_id": "SC011",
+          "setup": "Video URL is available",
+          "action": "Bot sends video to user",
+          "assertion": "Video message is sent successfully",
+          "examples": [
+            {
+              "input": {"video_url": "https://example.com/video.mp4"},
+              "expected": {"video_sent": true}
+            }
+          ]
+        },
+        {
+          "test_id": "T012",
+          "scenario_id": "SC012",
+          "setup": "Generation pipeline fails",
+          "action": "Error occurs during generation",
+          "assertion": "Bot sends error message",
+          "examples": [
+            {
+              "input": {"error": "Hedra API timeout"},
+              "expected": {"reply_contains": "error"}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
