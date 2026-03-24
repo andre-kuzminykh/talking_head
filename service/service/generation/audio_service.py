@@ -1,29 +1,38 @@
 """
-AudioService — text-to-speech via Hedra API.
+AudioService — text-to-speech via ElevenLabs API + Hedra asset upload.
+
+Flow:
+1. Send text to ElevenLabs TTS → receive audio bytes (mp3)
+2. Upload audio to Hedra as asset → receive asset_id
+3. Return asset_id as audio_url for VideoService
 
 ## Traceability
 Feature: F006 — Audio generation
 Scenarios: SC009
 """
-import asyncio
-
 import httpx
 
 from core.config import config
 from core.exceptions import ExternalServiceError, ValidationError
 
 HEDRA_BASE = "https://api.hedra.com/web-app/public"
-POLL_INTERVAL = 2
-MAX_POLL_ATTEMPTS = 30  # 60 seconds
+ELEVENLABS_BASE = "https://api.elevenlabs.io/v1"
 
 
 class AudioService:
     def __init__(self):
-        self._api_key = config.HEDRA_API_KEY
-        self._voice_name = config.TTS_VOICE
+        self._hedra_api_key = config.HEDRA_API_KEY
+        self._elevenlabs_api_key = config.ELEVENLABS_API_KEY
+        self._voice_id = config.ELEVENLABS_VOICE_ID
 
-    def _headers(self) -> dict:
-        return {"X-API-Key": self._api_key}
+    def _hedra_headers(self) -> dict:
+        return {"X-API-Key": self._hedra_api_key}
+
+    def _elevenlabs_headers(self) -> dict:
+        return {
+            "xi-api-key": self._elevenlabs_api_key,
+            "Content-Type": "application/json",
+        }
 
     async def generate_audio(self, text: str) -> dict:
         if not text.strip():
@@ -31,67 +40,56 @@ class AudioService:
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                # 1. Resolve voice_id
-                voice_id = await self._get_voice_id(client)
-                print(f"[HEDRA TTS] Using voice_id={voice_id}")
+                # 1. Generate audio via ElevenLabs
+                audio_bytes = await self._elevenlabs_tts(client, text)
+                print(f"[11LABS TTS] Generated audio ({len(audio_bytes)} bytes)")
 
-                # 2. Create TTS generation
-                resp = await client.post(
-                    f"{HEDRA_BASE}/generations",
-                    headers=self._headers(),
-                    json={
-                        "type": "text_to_speech",
-                        "voice_id": voice_id,
-                        "text": text,
-                    },
-                )
-                print(f"[HEDRA TTS] Create response {resp.status_code}: {resp.text}")
-                resp.raise_for_status()
-                data = resp.json()
-                generation_id = data["id"]
-                asset_id = data.get("asset_id", "")
+                # 2. Upload audio to Hedra as asset
+                asset_id = await self._upload_audio_asset(client, audio_bytes)
+                print(f"[11LABS TTS] Uploaded to Hedra, asset_id={asset_id}")
 
-                # 3. Poll until TTS is done
-                asset_id = await self._poll_tts(client, generation_id, asset_id)
-                print(f"[HEDRA TTS] Done, asset_id={asset_id}")
-
-                # Return asset_id as "audio_url" — VideoService will use it
                 return {"audio_url": asset_id}
 
         except (ValidationError, ExternalServiceError):
             raise
         except Exception as e:
-            print(f"[HEDRA TTS] ERROR: {e}")
+            print(f"[11LABS TTS] ERROR: {e}")
             raise ExternalServiceError(f"TTS error: {e}")
 
-    async def _get_voice_id(self, client: httpx.AsyncClient) -> str:
-        resp = await client.get(f"{HEDRA_BASE}/voices", headers=self._headers())
-        resp.raise_for_status()
-        voices = resp.json()
-        for v in voices:
-            if self._voice_name.lower() in v.get("name", "").lower():
-                return v["id"]
-        if voices:
-            return voices[0]["id"]
-        raise ExternalServiceError("No voices available")
-
-    async def _poll_tts(self, client: httpx.AsyncClient, generation_id: str, asset_id: str) -> str:
-        for attempt in range(MAX_POLL_ATTEMPTS):
-            resp = await client.get(
-                f"{HEDRA_BASE}/generations/{generation_id}/status",
-                headers=self._headers(),
+    async def _elevenlabs_tts(self, client: httpx.AsyncClient, text: str) -> bytes:
+        resp = await client.post(
+            f"{ELEVENLABS_BASE}/text-to-speech/{self._voice_id}",
+            headers=self._elevenlabs_headers(),
+            json={
+                "text": text,
+                "model_id": "eleven_multilingual_v2",
+            },
+        )
+        if resp.status_code != 200:
+            print(f"[11LABS TTS] Error {resp.status_code}: {resp.text}")
+            raise ExternalServiceError(
+                f"ElevenLabs TTS failed ({resp.status_code}): {resp.text}"
             )
-            resp.raise_for_status()
-            data = resp.json()
-            status = data.get("status", "")
-            print(f"[HEDRA TTS] Status: {status} (attempt {attempt + 1})")
+        return resp.content
 
-            if status in ("completed", "complete", "done"):
-                return data.get("asset_id", asset_id) or asset_id
+    async def _upload_audio_asset(
+        self, client: httpx.AsyncClient, audio_bytes: bytes
+    ) -> str:
+        # Create asset record in Hedra
+        resp = await client.post(
+            f"{HEDRA_BASE}/assets",
+            headers=self._hedra_headers(),
+            json={"name": "speech.mp3", "type": "audio"},
+        )
+        resp.raise_for_status()
+        asset = resp.json()
+        asset_id = asset["id"]
 
-            if status in ("failed", "error"):
-                raise ExternalServiceError(f"TTS failed: {data.get('error', data)}")
-
-            await asyncio.sleep(POLL_INTERVAL)
-
-        raise ExternalServiceError("TTS timed out")
+        # Upload audio file
+        resp = await client.post(
+            f"{HEDRA_BASE}/assets/{asset_id}/upload",
+            headers=self._hedra_headers(),
+            files={"file": ("speech.mp3", audio_bytes, "audio/mpeg")},
+        )
+        resp.raise_for_status()
+        return asset_id

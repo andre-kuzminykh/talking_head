@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     TTS_API_URL: str = ""
     TTS_VOICE: str = "David"
 
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_VOICE_ID: str = ""
+
     @property
     def database_url(self) -> str:
         return (
