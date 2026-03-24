@@ -17,6 +17,7 @@ from core.exceptions import ExternalServiceError, ValidationError
 class AudioService:
     def __init__(self):
         self._api_url = config.TTS_API_URL
+        self._api_key = config.HEDRA_API_KEY
         self._voice = config.TTS_VOICE
 
     async def generate_audio(self, text: str) -> dict:
@@ -26,7 +27,8 @@ class AudioService:
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
-                    f"{self._api_url}/tts",
+                    f"{self._api_url}/v1/audio",
+                    headers={"X-API-Key": self._api_key},
                     json={"text": text, "voice": self._voice},
                 )
                 resp.raise_for_status()
