@@ -16,7 +16,7 @@ router = APIRouter()
 service = PhotoService()
 
 
-@router.post("", response_model=PhotoResponseSchema, status_code=201)
+@router.post("/", response_model=PhotoResponseSchema, status_code=201)
 async def create_photo(
     data: PhotoCreateSchema,
     session: AsyncSession = Depends(db_connect.get_session),
