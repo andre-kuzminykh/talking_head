@@ -1,21 +1,15 @@
 """
-VideoService — video generation via Hedra API.
+VideoService — talking-head video generation via Hedra Avatar API.
 
 Full workflow:
-1. GET /voices → pick voice_id
-2. GET /models → pick model_id (character-3)
-3. POST /assets → create image asset
-4. POST /assets/{id}/upload → upload photo bytes
-5. POST /generations → submit generation with inline TTS
-6. Poll GET /generations/{id}/status until complete
-7. Return video download URL
+1. Upload photo as image asset
+2. Create generation with Hedra Avatar model + inline TTS
+3. Poll until complete
+4. Return video download URL
 
 ## Traceability
 Feature: F007 — Video generation
 Scenarios: SC010
-
-## Dependencies
-- Hedra API (https://api.hedra.com)
 """
 import asyncio
 import logging
@@ -28,8 +22,9 @@ from core.exceptions import ExternalServiceError, ValidationError
 logger = logging.getLogger(__name__)
 
 HEDRA_BASE = "https://api.hedra.com/web-app/public"
-POLL_INTERVAL = 5  # seconds
-MAX_POLL_ATTEMPTS = 120  # 10 minutes max
+HEDRA_AVATAR_MODEL_ID = "26f0fc66-152b-40ab-abed-76c43df99bc8"
+POLL_INTERVAL = 5
+MAX_POLL_ATTEMPTS = 120  # 10 minutes
 
 
 class VideoService:
@@ -44,13 +39,10 @@ class VideoService:
         """Generate a talking-head video.
 
         Args:
-            photo_url: Telegram file_id — used to download the photo via
-                       Telegram Bot API file_path stored in our DB, OR a
-                       direct URL / file_id string.
-            audio_url: Actually the speech text (passed through from
-                       AudioService).  Hedra performs TTS inline.
+            photo_url: Telegram file_id for the photo.
+            audio_url: Speech text (passed through from AudioService).
         """
-        speech_text = audio_url  # see AudioService — this is the raw text
+        speech_text = audio_url
         if not photo_url.strip():
             raise ValidationError("photo_url cannot be empty")
         if not speech_text.strip():
@@ -62,22 +54,21 @@ class VideoService:
                 voice_id = await self._get_voice_id(client)
                 logger.info("Using voice_id=%s", voice_id)
 
-                # 2. Resolve model_id
-                model_id = await self._get_model_id(client)
-                logger.info("Using model_id=%s", model_id)
-
-                # 3-4. Upload photo as asset
+                # 2. Download photo from Telegram
                 photo_bytes = await self._download_telegram_photo(client, photo_url)
+                logger.info("Downloaded photo (%d bytes)", len(photo_bytes))
+
+                # 3. Upload photo as asset
                 asset_id = await self._upload_image_asset(client, photo_bytes)
                 logger.info("Uploaded image asset_id=%s", asset_id)
 
-                # 5. Create generation
+                # 4. Create generation
                 generation_id = await self._create_generation(
-                    client, model_id, asset_id, voice_id, speech_text,
+                    client, asset_id, voice_id, speech_text,
                 )
                 logger.info("Created generation_id=%s", generation_id)
 
-            # 6. Poll for completion (with a longer timeout)
+            # 5. Poll for completion
             async with httpx.AsyncClient(timeout=30.0) as client:
                 video_url = await self._poll_generation(client, generation_id)
                 logger.info("Generation complete, video_url=%s", video_url)
@@ -90,41 +81,19 @@ class VideoService:
             logger.error("Hedra generation failed: %s", e, exc_info=True)
             raise ExternalServiceError(f"Hedra API error: {e}")
 
-    # ------------------------------------------------------------------
-    # Hedra API helpers
-    # ------------------------------------------------------------------
-
     async def _get_voice_id(self, client: httpx.AsyncClient) -> str:
         resp = await client.get(f"{HEDRA_BASE}/voices", headers=self._headers())
         resp.raise_for_status()
         voices = resp.json()
-        # Try to find the configured voice by name
         for v in voices:
-            name = v.get("name", "") or v.get("voice_name", "")
-            if self._voice_name.lower() in name.lower():
-                return v.get("id") or v.get("voice_id")
-        # Fallback: use the first available voice
+            if self._voice_name.lower() in v.get("name", "").lower():
+                return v["id"]
         if voices:
-            return voices[0].get("id") or voices[0].get("voice_id")
-        raise ExternalServiceError("No voices available in Hedra API")
-
-    async def _get_model_id(self, client: httpx.AsyncClient) -> str:
-        resp = await client.get(f"{HEDRA_BASE}/models", headers=self._headers())
-        resp.raise_for_status()
-        models = resp.json()
-        # Prefer character-3
-        for m in models:
-            name = m.get("name", "") or m.get("model_name", "")
-            if "character-3" in name.lower():
-                return m.get("id") or m.get("model_id")
-        if models:
-            return models[0].get("id") or models[0].get("model_id")
-        raise ExternalServiceError("No models available in Hedra API")
+            return voices[0]["id"]
+        raise ExternalServiceError("No voices available")
 
     async def _download_telegram_photo(self, client: httpx.AsyncClient, file_id: str) -> bytes:
-        """Download photo from Telegram using the Bot API."""
         bot_token = config.BOT_TOKEN
-        # Get file path
         resp = await client.get(
             f"https://api.telegram.org/bot{bot_token}/getFile",
             params={"file_id": file_id},
@@ -134,8 +103,6 @@ class VideoService:
         if not data.get("ok"):
             raise ExternalServiceError(f"Telegram getFile failed: {data}")
         file_path = data["result"]["file_path"]
-
-        # Download file
         resp = await client.get(
             f"https://api.telegram.org/file/bot{bot_token}/{file_path}"
         )
@@ -143,40 +110,39 @@ class VideoService:
         return resp.content
 
     async def _upload_image_asset(self, client: httpx.AsyncClient, photo_bytes: bytes) -> str:
-        # Create asset
         resp = await client.post(
             f"{HEDRA_BASE}/assets",
             headers=self._headers(),
             json={"name": "photo.jpg", "type": "image"},
         )
+        logger.info("Create asset response %s: %s", resp.status_code, resp.text)
         resp.raise_for_status()
         asset = resp.json()
-        asset_id = asset.get("id") or asset.get("asset_id")
+        asset_id = asset["id"]
 
-        # Upload file content
         resp = await client.post(
             f"{HEDRA_BASE}/assets/{asset_id}/upload",
             headers=self._headers(),
             files={"file": ("photo.jpg", photo_bytes, "image/jpeg")},
         )
+        logger.info("Upload asset response %s: %s", resp.status_code, resp.text)
         resp.raise_for_status()
         return asset_id
 
     async def _create_generation(
         self,
         client: httpx.AsyncClient,
-        model_id: str,
         image_asset_id: str,
         voice_id: str,
         text: str,
     ) -> str:
         payload = {
             "type": "video",
-            "ai_model_id": model_id,
+            "ai_model_id": HEDRA_AVATAR_MODEL_ID,
             "start_keyframe_id": image_asset_id,
             "generated_video_inputs": {
                 "text_prompt": "",
-                "resolution": "1080p",
+                "resolution": "720p",
                 "aspect_ratio": "1:1",
             },
             "audio_generation": {
@@ -193,7 +159,7 @@ class VideoService:
         logger.info("Create generation response %s: %s", resp.status_code, resp.text)
         resp.raise_for_status()
         data = resp.json()
-        return data.get("id") or data.get("generation_id")
+        return data["id"]
 
     async def _poll_generation(self, client: httpx.AsyncClient, generation_id: str) -> str:
         for attempt in range(MAX_POLL_ATTEMPTS):
@@ -207,15 +173,22 @@ class VideoService:
             logger.info("Generation %s status: %s (attempt %d)", generation_id, status, attempt + 1)
 
             if status in ("completed", "complete", "done"):
-                video_url = data.get("download_url") or data.get("video_url") or data.get("url")
+                video_url = (
+                    data.get("download_url")
+                    or data.get("video_url")
+                    or data.get("url")
+                )
                 if video_url:
                     return video_url
-                raise ExternalServiceError(f"Generation completed but no video URL in response: {data}")
+                raise ExternalServiceError(
+                    f"Generation completed but no video URL: {data}"
+                )
 
             if status in ("failed", "error"):
-                error_msg = data.get("error", "Unknown error")
-                raise ExternalServiceError(f"Hedra generation failed: {error_msg}")
+                raise ExternalServiceError(
+                    f"Hedra generation failed: {data.get('error', data)}"
+                )
 
             await asyncio.sleep(POLL_INTERVAL)
 
-        raise ExternalServiceError("Generation timed out after polling")
+        raise ExternalServiceError("Generation timed out")
