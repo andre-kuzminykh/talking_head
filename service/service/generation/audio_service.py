@@ -32,7 +32,7 @@ class AudioService:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
                     f"{self._api_url}/v1/audio",
-                    headers={"X-API-Key": self._api_key},
+                    headers={"X-API-Key": self._api_key, "Authorization": f"Bearer {self._api_key}"},
                     json={"text": text, "voice": self._voice},
                 )
                 logger.info("Hedra TTS response %s: %s", resp.status_code, resp.text)
