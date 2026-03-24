@@ -11,8 +11,10 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "postgres"
     DB_NAME: str = "talking_head"
 
+    BOT_TOKEN: str = ""
+
     HEDRA_API_KEY: str = ""
-    HEDRA_API_URL: str = "https://mercury.dev.dream-ai.com/api"
+    HEDRA_API_URL: str = "https://api.hedra.com/web-app/public"
 
     TTS_API_URL: str = ""
     TTS_VOICE: str = "Andre AIT eng"
