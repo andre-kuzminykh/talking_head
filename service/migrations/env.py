@@ -8,7 +8,8 @@ from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from core.config import config as app_config
-from model.base_model import Base
+from model import Base  # noqa: F401 — imports PhotoModel via model/__init__.py
+import model.photos.photo_model  # noqa: F401 — register PhotoModel with Base.metadata
 
 config = context.config
 if config.config_file_name is not None:
