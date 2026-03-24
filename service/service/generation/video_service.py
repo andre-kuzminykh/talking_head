@@ -52,21 +52,21 @@ class VideoService:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 # 1. Resolve voice_id
                 voice_id = await self._get_voice_id(client)
-                logger.info("Using voice_id=%s", voice_id)
+                print(f"[HEDRA] Using voice_id={voice_id}")
 
                 # 2. Download photo from Telegram
                 photo_bytes = await self._download_telegram_photo(client, photo_url)
-                logger.info("Downloaded photo (%d bytes)", len(photo_bytes))
+                print(f"[HEDRA] Downloaded photo ({len(photo_bytes)} bytes)")
 
                 # 3. Upload photo as asset
                 asset_id = await self._upload_image_asset(client, photo_bytes)
-                logger.info("Uploaded image asset_id=%s", asset_id)
+                print(f"[HEDRA] Uploaded image asset_id={asset_id}")
 
                 # 4. Create generation
                 generation_id = await self._create_generation(
                     client, asset_id, voice_id, speech_text,
                 )
-                logger.info("Created generation_id=%s", generation_id)
+                print(f"[HEDRA] Created generation_id={generation_id}")
 
             # 5. Poll for completion
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -78,7 +78,7 @@ class VideoService:
         except (ValidationError, ExternalServiceError):
             raise
         except Exception as e:
-            logger.error("Hedra generation failed: %s", e, exc_info=True)
+            print(f"[HEDRA] ERROR: {e}")
             raise ExternalServiceError(f"Hedra API error: {e}")
 
     async def _get_voice_id(self, client: httpx.AsyncClient) -> str:
@@ -115,7 +115,7 @@ class VideoService:
             headers=self._headers(),
             json={"name": "photo.jpg", "type": "image"},
         )
-        logger.info("Create asset response %s: %s", resp.status_code, resp.text)
+        print(f"[HEDRA] Create asset response {resp.status_code}: {resp.text}")
         resp.raise_for_status()
         asset = resp.json()
         asset_id = asset["id"]
@@ -125,7 +125,7 @@ class VideoService:
             headers=self._headers(),
             files={"file": ("photo.jpg", photo_bytes, "image/jpeg")},
         )
-        logger.info("Upload asset response %s: %s", resp.status_code, resp.text)
+        print(f"[HEDRA] Upload asset response {resp.status_code}: {resp.text}")
         resp.raise_for_status()
         return asset_id
 
@@ -156,7 +156,7 @@ class VideoService:
             headers=self._headers(),
             json=payload,
         )
-        logger.info("Create generation response %s: %s", resp.status_code, resp.text)
+        print(f"[HEDRA] Create generation response {resp.status_code}: {resp.text}")
         resp.raise_for_status()
         data = resp.json()
         return data["id"]
