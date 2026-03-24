@@ -22,7 +22,7 @@ from core.exceptions import ExternalServiceError, ValidationError
 logger = logging.getLogger(__name__)
 
 HEDRA_BASE = "https://api.hedra.com/web-app/public"
-HEDRA_AVATAR_MODEL_ID = "26f0fc66-152b-40ab-abed-76c43df99bc8"
+HEDRA_AVATAR_MODEL_ID = "d1dd37a3-e39a-4854-a298-6510289f9cf2"  # Hedra Character 3
 POLL_INTERVAL = 5
 MAX_POLL_ATTEMPTS = 120  # 10 minutes
 
