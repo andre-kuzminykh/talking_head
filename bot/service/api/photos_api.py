@@ -20,13 +20,13 @@ class PhotosAPI:
             payload = {"user_id": user_id, "file_id": file_id}
             if file_path:
                 payload["file_path"] = file_path
-            resp = await client.post("/api/v1/photos", json=payload)
+            resp = await client.post("/api/v1/photos/", json=payload)
             resp.raise_for_status()
             return resp.json()
 
     async def get_user_photos(self, user_id: int) -> list[dict]:
         async with httpx.AsyncClient(base_url=self._base_url) as client:
-            resp = await client.get("/api/v1/photos", params={"user_id": user_id})
+            resp = await client.get("/api/v1/photos/", params={"user_id": user_id})
             resp.raise_for_status()
             return resp.json()
 
