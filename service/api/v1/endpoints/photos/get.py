@@ -16,7 +16,7 @@ router = APIRouter()
 service = PhotoService()
 
 
-@router.get("", response_model=list[PhotoResponseSchema])
+@router.get("/", response_model=list[PhotoResponseSchema])
 async def get_user_photos(
     user_id: int = Query(..., description="Telegram user ID"),
     session: AsyncSession = Depends(db_connect.get_session),
