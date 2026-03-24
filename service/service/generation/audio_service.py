@@ -57,8 +57,11 @@ class AudioService:
             raise ExternalServiceError(f"TTS error: {e}")
 
     async def _elevenlabs_tts(self, client: httpx.AsyncClient, text: str) -> bytes:
+        url = f"{ELEVENLABS_BASE}/text-to-speech/{self._voice_id}"
+        print(f"[11LABS TTS] POST {url}")
+        print(f"[11LABS TTS] voice_id={self._voice_id!r}, key=...{self._elevenlabs_api_key[-8:]}")
         resp = await client.post(
-            f"{ELEVENLABS_BASE}/text-to-speech/{self._voice_id}",
+            url,
             headers=self._elevenlabs_headers(),
             json={
                 "text": text,
