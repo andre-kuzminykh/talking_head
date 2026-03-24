@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     HEDRA_API_URL: str = "https://api.hedra.com/web-app/public"
 
     TTS_API_URL: str = ""
-    TTS_VOICE: str = "Andre AIT eng"
+    TTS_VOICE: str = "David"
 
     @property
     def database_url(self) -> str:
