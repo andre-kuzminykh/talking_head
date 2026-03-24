@@ -62,7 +62,6 @@ class AudioService:
             headers=self._elevenlabs_headers(),
             json={
                 "text": text,
-                "model_id": "eleven_multilingual_v2",
             },
         )
         if resp.status_code != 200:
