@@ -8,10 +8,14 @@ Scenarios: SC009
 ## Dependencies
 - External TTS API
 """
+import logging
+
 import httpx
 
 from core.config import config
 from core.exceptions import ExternalServiceError, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class AudioService:
@@ -31,8 +35,10 @@ class AudioService:
                     headers={"X-API-Key": self._api_key},
                     json={"text": text, "voice": self._voice},
                 )
+                logger.info("Hedra TTS response %s: %s", resp.status_code, resp.text)
                 resp.raise_for_status()
                 data = resp.json()
                 return {"audio_url": data.get("audio_url", "")}
         except httpx.HTTPError as e:
+            logger.error("TTS service error: %s", e)
             raise ExternalServiceError(f"TTS service error: {e}")
