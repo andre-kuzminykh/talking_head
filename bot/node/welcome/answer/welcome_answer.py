@@ -4,6 +4,11 @@ WelcomeAnswer — renders welcome screen.
 ## Traceability
 Feature: F001 — User greeting
 Scenarios: SC001
+
+## Flow
+The welcome screen immediately asks for a photo (state is already
+set to waiting_for_photo by StartCode). A single "Select saved photo"
+button is shown as an alternative.
 """
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -16,10 +21,6 @@ class WelcomeAnswer:
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(
-                        text=BUTTONS["upload_photo"],
-                        callback_data=PhotoCallback(action="upload").pack(),
-                    ),
                     InlineKeyboardButton(
                         text=BUTTONS["select_photo"],
                         callback_data=PhotoCallback(action="select").pack(),

@@ -7,12 +7,15 @@ Feature: F003 — Photo storage
 Scenarios: SC002, SC003, SC004
 SC002 — photo sent → saved → answer: photo_saved
 SC003 — non-photo sent → answer: no_photo_error
+
+## Flow
+After /start the state is already waiting_for_photo, so the user
+can send a photo immediately without pressing any button first.
 """
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
-from callback.photo_callback import PhotoCallback
 from node.photo.trigger.upload_trigger import UploadTrigger
 from node.photo.code.upload_code import UploadCode
 from node.photo.answer.photo_saved_answer import PhotoSavedAnswer
@@ -25,13 +28,6 @@ ANSWER_REGISTRY = {
     "photo_saved": PhotoSavedAnswer(),
     "no_photo_error": NoPhotoErrorAnswer(),
 }
-
-
-@upload_photo_router.callback_query(PhotoCallback.filter(F.action == "upload"))
-async def handle_upload_prompt(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    await state.set_state(GenerationStates.waiting_for_photo)
-    await callback.message.edit_text("Please send me a photo.")
 
 
 @upload_photo_router.message(GenerationStates.waiting_for_photo, F.photo)

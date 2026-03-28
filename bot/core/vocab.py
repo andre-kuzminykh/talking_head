@@ -6,7 +6,7 @@ TEXTS = {
     "welcome": (
         "Welcome to <b>Talking Head Bot</b>!\n\n"
         "I can create talking head videos from your photos.\n\n"
-        "Upload a photo or select a saved one to get started."
+        "Send me a photo to get started, or select a saved one."
     ),
     "photo_saved": "Photo saved! Now send me the text you want to be spoken.",
     "photo_select_prompt": "Select a saved photo or upload a new one:",
