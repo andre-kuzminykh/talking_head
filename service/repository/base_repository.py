@@ -1,7 +1,9 @@
 """
 Generic base repository with CRUD operations.
 """
-from typing import Generic, TypeVar
+from __future__ import annotations
+
+from typing import Generic, Optional, TypeVar
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +15,7 @@ class BaseRepository(Generic[T]):
     def __init__(self, model: type[T]):
         self.model = model
 
-    async def get_by_id(self, session: AsyncSession, entity_id: int) -> T | None:
+    async def get_by_id(self, session: AsyncSession, entity_id: int) -> Optional[T]:
         return await session.get(self.model, entity_id)
 
     async def get_all(self, session: AsyncSession) -> list[T]:

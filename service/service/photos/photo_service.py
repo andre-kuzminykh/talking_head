@@ -8,6 +8,10 @@ Scenarios: SC004, SC005, SC006
 ## Dependencies
 - PhotoRepository
 """
+from __future__ import annotations
+
+from typing import Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import NotFoundError, ValidationError
@@ -23,7 +27,7 @@ class PhotoService:
         user_id: int,
         file_id: str,
         session: AsyncSession,
-        file_path: str | None = None,
+        file_path: Optional[str] = None,
     ):
         if not file_id.strip():
             raise ValidationError("file_id cannot be empty")
